@@ -1,45 +1,71 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
 
 namespace Signature
 {
     class Program
     {
+        private static Lazy<Pool> _threadPool = new Lazy<Pool>(() => new Pool(Environment.ProcessorCount));
+
         static void Main(string[] args)
         {
-            var length = new FileInfo(@"C:\\Users\\User\\Downloads\\result_efr.txt").Length;
-            ReadFile(@"C:\\Users\\User\\Downloads\\result_efr.txt", 5000, length);
-        }
-
-        private static void ReadFile(string filePath, int bufferSize, long fileLength)
-        {
-            int MAX_BUFFER = bufferSize;
-            byte[] buffer = new byte[MAX_BUFFER];
-            int bytesRead;
-            var blockNumber = 0;
-            var doneEvents = new ManualResetEvent[(int)Math.Ceiling((double)fileLength / MAX_BUFFER)];
-            var fileBlocks = new FileBlockItem[(int)Math.Ceiling((double)fileLength / MAX_BUFFER)];
-            using (FileStream fs = File.Open(filePath, FileMode.Open, FileAccess.Read))
-            using (BufferedStream bs = new BufferedStream(fs))
+            try
             {
-                while ((bytesRead = bs.Read(buffer, 0, MAX_BUFFER)) != 0)
+                if (args.Length == 0)
                 {
-                    var tempbuffer = new byte[MAX_BUFFER];
-                    Array.Copy(buffer, tempbuffer, MAX_BUFFER); // пока не понял как правильно byteRead или MaxBuffer, влияет на последний блок
-                    // ну и последний блок затирал без копирования, так как ссылка
-                    doneEvents[blockNumber] = new ManualResetEvent(false);
-                    fileBlocks[blockNumber] = new FileBlockItem(doneEvents[blockNumber]) { SizeToHash = bytesRead, BlockNumber = blockNumber, Content = tempbuffer };
-                    ThreadPool.QueueUserWorkItem(new WaitCallback(fileBlocks[blockNumber].CalculateHashMultiBlock));
-                    blockNumber++;
+                    Console.WriteLine("Enter path.");
+                    Console.WriteLine("Enter blocksize.");
+                    return;
+                }
+
+                var firstArgument = args[0];
+
+                switch (firstArgument)
+                {
+                    case "path" when args.Length == 2:
+                        ReadFile(args[1], 5000);
+                        break;
+                    case "path" when args.Length == 4 && args[2] == "blocksize":
+                        ReadFile(args[1], int.Parse(args[3]));
+                        break;
+                    case "blocksize" when args.Length == 4 && args[2] == "path":
+                        ReadFile(args[3], int.Parse(args[1]));
+                        break;
+                    default:
+                        throw new Exception("Invalid argument");
                 }
             }
-
-            WaitHandle.WaitAll(doneEvents);
-
-            for (int i = 0; i < fileBlocks.Length; i++)
+            catch (Exception ex)
             {
-                fileBlocks[i].PrintHash();
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
+        private static void ReadFile(string filePath, int blockLength)
+        {
+            if (blockLength <= 0)
+                throw new ArgumentException("Block size should exceed 0.");
+
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Path to file should not be null or whitespace.");
+
+            if (!File.Exists(filePath))
+                throw new ArgumentException($"Couldn't find a file: {filePath}");
+
+            var fileLength = new FileInfo(filePath).Length;
+
+            var blockNumber = 0;
+
+            using (FileStream fs = File.Open(filePath, FileMode.Open, FileAccess.Read))
+            using (BinaryReader br = new BinaryReader(fs))
+            {
+                while (br.BaseStream.Position != br.BaseStream.Length)
+                {
+                    var fileBlock = new FileBlockItem(blockNumber + 1, br.ReadBytes(blockLength));
+                    _threadPool.Value.QueueUserWorkItem(() => fileBlock.CalculateBlockHash());
+                    blockNumber++;
+                }
             }
         }
     }

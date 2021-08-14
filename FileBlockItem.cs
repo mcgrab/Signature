@@ -1,54 +1,32 @@
 ﻿using System;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 
 namespace Signature
 {
     public class FileBlockItem
     {
-        private ManualResetEvent _doneEvent;
-        public byte[] Content { get; set; }
+        private readonly byte[] _content;
 
-        public int BlockNumber { get; set; }
-
-        public int SizeToHash { get; set; }
+        private readonly int _blockNumber;
 
         public string Hash { get; private set; }
 
-        public FileBlockItem(ManualResetEvent doneEvent)
+        public FileBlockItem(int blockNumber, byte[] content)
         {
-            _doneEvent = doneEvent;
+            _content = content ?? throw new ArgumentNullException(nameof(content));
+            _blockNumber = blockNumber;
         }
 
-        public void CalculateHashMultiBlock(object obj)
+        public void CalculateBlockHash()
         {
             using SHA256 sha = SHA256.Create();
-            int offset = 0;
-
-            while (Content.Length - offset >= SizeToHash)
-                offset += sha.TransformBlock(Content, offset, SizeToHash, Content, offset);
-
-            sha.TransformFinalBlock(Content, offset, Content.Length - offset);
-
-            Hash = BytesToStr(sha.Hash);
-            _doneEvent.Set();
+            Hash = BitConverter.ToString(sha.ComputeHash(_content));
+            PrintHash();
         }
 
         public void PrintHash()
         {
-            Console.WriteLine($"block = {BlockNumber + 1}, Hash: {Hash}");
+            Console.WriteLine($"Block = {_blockNumber}, Hash: {Hash}");
         }
-
-        private string BytesToStr(byte[] bytes)
-        {
-            StringBuilder str = new StringBuilder();
-
-            for (int i = 0; i < bytes.Length; i++)
-                str.AppendFormat("{0:X2}", bytes[i]);
-
-            return str.ToString();
-        }
-
     }
 }
