@@ -5,7 +5,11 @@ namespace Signature
 {
     class Program
     {
-        private static Lazy<Pool> _threadPool = new Lazy<Pool>(() => new Pool(Environment.ProcessorCount));
+        private static Lazy<Pool> _threadPool = new Lazy<Pool>(() => new Pool(GetOptimizedNumberOfThreads(_fileLength, _blockLength)));
+
+        private static long _fileLength;
+
+        private static int _blockLength;
 
         static void Main(string[] args)
         {
@@ -53,7 +57,8 @@ namespace Signature
             if (!File.Exists(filePath))
                 throw new ArgumentException($"Couldn't find a file: {filePath}");
 
-            var fileLength = new FileInfo(filePath).Length;
+            _fileLength = new FileInfo(filePath).Length;
+            _blockLength = blockLength;
 
             var blockNumber = 0;
 
@@ -67,6 +72,12 @@ namespace Signature
                     blockNumber++;
                 }
             }
+        }
+
+        private static int GetOptimizedNumberOfThreads(long fileLength, int blockLength)
+        {
+            var numberOfActions = fileLength / blockLength + (fileLength % blockLength > 0 ? 1 : 0);
+            return (int)(numberOfActions < Environment.ProcessorCount ? numberOfActions : Environment.ProcessorCount);
         }
     }
 }

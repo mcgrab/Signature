@@ -7,7 +7,7 @@ namespace Signature
 {
     public class Pool
     {
-        private AutoResetEvent _autoResetEvent = new (false);
+        private AutoResetEvent _autoResetEvent = new(false);
         private ConcurrentQueue<Action> _queue = new();
         private Thread[] _threads;
 
@@ -17,9 +17,9 @@ namespace Signature
 
             _threads = Enumerable
                 .Range(0, size)
-                .Select(x => { var thread = new Thread(Work); thread.Start();  return thread;})
+                .Select(x => { var thread = new Thread(Work); thread.Start(); return thread; })
                 .ToArray();
-             
+
         }
 
         public void QueueUserWorkItem(Action action)
@@ -36,6 +36,8 @@ namespace Signature
                 {
                     action?.Invoke();
                 }
+
+                break;
             }
         }
     }
